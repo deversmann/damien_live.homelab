@@ -64,7 +64,8 @@
   loop: "{{ podman_app_specs.firewall_services }}"
   loop_control:
     loop_var: fw_item
-    label: "{{ fw_item.service | default('loop-' + ansible_loop.index) }}"
+    extended: true
+    label: "{{ fw_item.service | default('loop-' + ansible_loop.index | string) }}"
 
 - name: Do containers # noqa: args[module] - "name" missing b/c it is in the list
   containers.podman.podman_container: 

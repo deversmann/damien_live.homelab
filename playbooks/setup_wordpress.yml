@@ -3,6 +3,7 @@
   hosts: container_host
 
   vars:
+    wordpress_host_port: 8080
     podman_app_specs:
       create_dirs: true
       start_containers: true
@@ -26,7 +27,7 @@
       firewall_services:
         - service: wordpress
           state: present
-          port: 8080/tcp
+          port: "{{ wordpress_host_port }}/tcp"
           runtime: true
           permanent: true
         - service: wordpress
@@ -59,7 +60,7 @@
           volumes:
             - /home/{{ ansible_user }}/wordpress/data:/var/www/html:Z
           ports:
-            - 8080:80
+            - "{{ wordpress_host_port }}:80"
           secrets:
             - mariadb_wp_user_passwd,type=env,target=WORDPRESS_DB_PASSWORD
           env:
