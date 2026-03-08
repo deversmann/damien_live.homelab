@@ -1,0 +1,91 @@
+---
+# tasks file for damien_live.homelab.podman_app
+
+- name: Check dirs
+  when: podman_app_specs.create_dirs
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: >-
+    {{
+      podman_app_specs.containers |
+      map(attribute='volumes') |
+      ansible.builtin.flatten |
+      map('ansible.builtin.regex_search', '^[^\\:]*') |
+      select('ansible.builtin.regex', '^[/.].*') |
+      unique
+    }}
+  register: podman_app_file_stats
+
+- name: Create dirs
+  ansible.builtin.file:
+    path: "{{ item.item }}"
+    state: directory
+    mode: '0755'
+  loop: >-
+    {{ 
+      podman_app_file_stats.results | 
+      default({}) | 
+      selectattr('stat.exists', 'false') | 
+      list 
+    }}
+
+- name: Do networks # noqa: args[module] - "name" missing b/c it is in the list
+  containers.podman.podman_network: 
+    "{{ item }}"
+  loop: "{{ podman_app_specs.networks | list }}"
+  loop_control:
+    extended: true
+    label: "{{ item.name | default(ansible_loop.index) }}"
+
+- name: Do volumes # noqa: args[module] - "name" missing b/c it is in the list
+  containers.podman.podman_volume: 
+    "{{ item }}"
+  loop: "{{ podman_app_specs.volumes | list }}"
+  loop_control:
+    extended: true
+    label: "{{ item.name | default(ansible_loop.index) }}"
+
+- name: Do secrets # noqa: args[module] - "name" missing b/c it is in the list
+  containers.podman.podman_secret: 
+    "{{ item }}"
+  loop: "{{ podman_app_specs.secrets | list }}"
+  loop_control:
+    extended: true
+    label: "{{ item.name | default(ansible_loop.index) }}"
+
+- name: Do firewall_services
+  ansible.builtin.include_role:
+    name: fedora.linux_system_roles.firewall
+    apply:
+      become: true
+  vars:
+    firewall: |
+      {{ fw_item }}
+  loop: "{{ podman_app_specs.firewall_services }}"
+  loop_control:
+    loop_var: fw_item
+    label: "{{ fw_item.service | default('loop-' + ansible_loop.index) }}"
+
+- name: Do containers # noqa: args[module] - "name" missing b/c it is in the list
+  containers.podman.podman_container: 
+    "{{ item }}"
+  loop: "{{ podman_app_specs.containers | list }}"
+  loop_control:
+    extended: true
+    label: "{{ item.name | default(ansible_loop.index) }}"
+  register: podman_app_containers
+
+- name: Reload/start/restart quadlets
+  ansible.builtin.systemd_service:
+    daemon_reload: "{{ item.changed }}"
+    name: "{{ item.item.name }}"
+    state: >-
+      {{ 
+        omit if not podman_app_specs.start_containers 
+        else ('restarted' if item.changed 
+        else 'started') 
+      }}
+    scope: user
+  loop: "{{ podman_app_containers.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
