@@ -1,0 +1,82 @@
+---
+- name: Setup Wordpress
+  hosts: container_host
+
+  vars:
+    wordpress_host_port: 8080
+    podman_app_specs:
+      create_dirs: true
+      start_containers: true
+      networks:
+        - name: wordpress
+          state: quadlet
+          subnet: 192.168.22.0/24
+          gateway: 192.168.22.1
+      volumes:
+        - name: mariadb_wp
+          state: quadlet
+      secrets:
+        - name: mariadb_wp_root_passwd
+          state: present
+          skip_existing: true
+          data: "{{ lookup('ansible.builtin.password', '/dev/null', length=15) }}"
+        - name: mariadb_wp_user_passwd
+          state: present
+          skip_existing: true
+          data: "{{ lookup('ansible.builtin.password', '/dev/null', length=15) }}"
+      firewall_services:
+        - service: wordpress
+          state: present
+          port: "{{ wordpress_host_port }}/tcp"
+          runtime: true
+          permanent: true
+        - service: wordpress
+          state: enabled
+          runtime: true
+          permanent: true
+      containers:
+        - name: mariadb_wp
+          state: quadlet
+          image: docker.io/mariadb:latest
+          network: wordpress.network
+          volumes:
+            - mariadb_wp.volume:/var/lib/mysql:Z
+          secrets:
+            - mariadb_wp_root_passwd,type=env,target=MYSQL_ROOT_PASSWORD
+            - mariadb_wp_user_passwd,type=env,target=MYSQL_PASSWORD
+          env:
+            MYSQL_DATABASE: wordpress
+            MYSQL_USER: wordpress
+          quadlet_options:
+            - "AutoUpdate=registry"
+            - "Pull=newer"
+            - |
+              [Install]
+              WantedBy=default.target
+        - name: wordpress
+          state: quadlet
+          image: docker.io/wordpress:latest
+          network: wordpress.network
+          volumes:
+            - /home/{{ ansible_user }}/wordpress/data:/var/www/html:Z
+          ports:
+            - "{{ wordpress_host_port }}:80"
+          secrets:
+            - mariadb_wp_user_passwd,type=env,target=WORDPRESS_DB_PASSWORD
+          env:
+            WORDPRESS_DB_HOST: mariadb_wp
+            WORDPRESS_DB_USER: wordpress
+            WORDPRESS_DB_NAME: wordpress
+          quadlet_options:
+            - "AutoUpdate=registry"
+            - "Pull=newer"
+            - |
+              [Install]
+              WantedBy=default.target
+            - |
+              [Unit]
+              Requires=mariadb_wp.service
+              After=mariadb_wp.service
+  roles:
+    - name: Deploy it all
+      role: damien_live.homelab.podman_app

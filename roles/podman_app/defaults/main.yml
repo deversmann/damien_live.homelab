@@ -1,0 +1,11 @@
+---
+# defaults file for damien_live.homelab.podman_app
+
+podman_app_specs:
+  create_dirs: false
+  start_containers: false
+  networks: []
+  volumes: []
+  secrets: []
+  firewall_services: []
+  containers: []
