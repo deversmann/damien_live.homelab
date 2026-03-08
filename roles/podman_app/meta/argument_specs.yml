@@ -3,9 +3,45 @@
 
 argument_specs:
   main:
-    short_description: Role description.
+    short_description: >-
+      Installs/runs all the different podman elements to an application including: 
+      containers, networks, volumes, secrets and firewall services.
     options:
-      podman_app_my_variable:
-        type: str
+      podman_app_specs:
+        type: dict
         description: A simple string argument for demonstration.
-        default: "default_value"
+        required: true
+        options:
+          create_dirs:
+            type: bool
+            description: "!#!FIXME description"
+            default: false
+          start_containers:
+            type: bool
+            description: "!#!FIXME description"
+            default: false
+          networks:
+            type: list
+            elements: dict
+            description: "!#!FIXME description"
+            default: []
+          volumes:
+            type: list
+            elements: dict
+            description: "!#!FIXME description"
+            default: []
+          secrets:
+            type: list
+            elements: dict
+            description: "!#!FIXME description"
+            default: []
+          firewall_services:
+            type: list
+            elements: dict
+            description: "!#!FIXME description"
+            default: []
+          containers:
+            type: list
+            elements: dict
+            description: "!#!FIXME description"
+            default: []
