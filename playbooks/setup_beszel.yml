@@ -1,0 +1,62 @@
+---
+- name: Setup Beszel and Beszel Agent
+  hosts: container_host
+
+  vars:
+    beszel_host_port: 8090
+    podman_app_specs:
+      create_dirs: true
+      start_containers: true
+      firewall_services:
+        - service: beszel
+          state: present
+          port: "{{ beszel_host_port }}/tcp"
+          runtime: true
+          permanent: true
+        - service: beszel
+          state: enabled
+          runtime: true
+          permanent: true
+      containers:
+        - name: beszel
+          state: quadlet
+          image: docker.io/henrygd/beszel
+          volumes:
+            - /home/{{ ansible_user }}/beszel/data:/beszel_data:z
+            - /home/{{ ansible_user }}/beszel/socket:/beszel_socket:z
+          ports:
+            - "{{ beszel_host_port }}:8090"
+          security_opt:
+            - "label=type:container_runtime_t"
+          quadlet_options:
+            - "AutoUpdate=registry"
+            - "Pull=newer"
+            - |
+              [Install]
+              WantedBy=default.target
+        - name: beszel-agent
+          state: quadlet
+          network: host
+          image: docker.io/henrygd/beszel-agent
+          volumes:
+            - /run/user/1000/podman/podman.sock:/run/user/1000/podman/podman.sock:ro
+            - /home/{{ ansible_user }}/beszel/agent_data:/var/lib/beszel-agent:z
+            - /home/{{ ansible_user }}/beszel/socket:/beszel_socket:z
+          env:
+            KEY: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFMYQfoNdlh+M83Lt7SBxUoBVo0IXtRCIh5Lt7HK9nWC"
+            LISTEN: /beszel_socket/beszel.sock
+            TOKEN: "a0af5-51447427-9b9b4-707fb22e"
+            HUB_URL: "http://host.containers.internal:8090"
+            DOCKER_HOST: "unix:///run/user/1000/podman/podman.sock"
+          security_opt:
+            - "label=type:container_runtime_t"
+          quadlet_options:
+            - "AutoUpdate=registry"
+            - "Pull=newer"
+            - |
+              [Install]
+              WantedBy=default.target
+
+  roles:
+    - name: Deploy it all
+      role: damien_live.homelab.podman_app

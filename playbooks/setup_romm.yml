@@ -1,0 +1,96 @@
+---
+- name: Setup Romm
+  hosts: container_host
+
+  vars:
+    romm_host_port: 6080
+    podman_app_specs:
+      create_dirs: true
+      start_containers: true
+      networks:
+        - name: romm
+          state: quadlet
+          subnet: 192.168.28.0/24
+          gateway: 192.168.28.1
+      volumes:
+        - name: mariadb_romm
+          state: quadlet
+      secrets:
+        - name: mariadb_romm_root_passwd
+          state: present
+          skip_existing: true
+          data: "{{ lookup('ansible.builtin.password', '/dev/null', length=15) }}"
+        - name: mariadb_romm_user_passwd
+          state: present
+          skip_existing: true
+          data: "{{ lookup('ansible.builtin.password', '/dev/null', length=15) }}"
+        - name: romm_auth_secret_key
+          state: present
+          skip_existing: true
+          data: "{{ lookup('ansible.builtin.password', '/dev/null', length=32, chars=['digits','abcdef']) }}"
+      firewall_services:
+        - service: romm
+          state: present
+          port: "{{ romm_host_port }}/tcp"
+          runtime: true
+          permanent: true
+        - service: romm
+          state: enabled
+          runtime: true
+          permanent: true
+      containers:
+        - name: mariadb_romm
+          state: quadlet
+          image: docker.io/mariadb:latest
+          network: romm.network
+          volumes:
+            - mariadb_romm.volume:/var/lib/mysql:Z
+          secrets:
+            - mariadb_romm_root_passwd,type=env,target=MARIADB_ROOT_PASSWORD
+            - mariadb_romm_user_passwd,type=env,target=MARIADB_PASSWORD
+          env:
+            MARIADB_DATABASE: romm
+            MARIADB_USER: romm
+          quadlet_options:
+            - "AutoUpdate=registry"
+            - "Pull=newer"
+            - |
+              [Install]
+              WantedBy=default.target
+        - name: romm
+          state: quadlet
+          image: docker.io/rommapp/romm:latest
+          network: romm.network
+          volumes:
+            - /home/{{ ansible_user }}/romm/resources:/romm/resources:Z
+            - /home/{{ ansible_user }}/romm/redis:/redis-data:Z
+            - /home/{{ ansible_user }}/romm/library:/romm/library:Z
+            - /home/{{ ansible_user }}/romm/assets:/romm/assets:Z
+            - /home/{{ ansible_user }}/romm/config:/romm/config:Z
+          ports:
+            - "{{ romm_host_port }}:8080"
+          secrets:
+            - romm_auth_secret_key,type=env,target=ROMM_AUTH_SECRET_KEY
+            - mariadb_romm_user_passwd,type=env,target=DB_PASSWD
+          env:
+            DB_HOST: mariadb_romm
+            DB_USER: romm
+            DB_NAME: romm
+            IGDB_CLIENT_ID: 3yhfu6pzrkowrb30ap8anxb5qzb8es
+            IGDB_CLIENT_SECRET: yljxi8209o04qrgivu8p92kgtwcpd4
+            RETROACHIEVEMENTS_API_KEY: tzLcgxPKwz1NFua3zcSn0ajoTM4mIn7B
+            STEAMGRID_API_KEY: 9c3ec149529df4b849c21eb872dcefde
+            HASHEOUS_API_ENABLED: true
+          quadlet_options:
+            - "AutoUpdate=registry"
+            - "Pull=newer"
+            - |
+              [Install]
+              WantedBy=default.target
+            - |
+              [Unit]
+              Requires=mariadb_romm.service
+              After=mariadb_romm.service
+  roles:
+    - name: Deploy it all
+      role: damien_live.homelab.podman_app

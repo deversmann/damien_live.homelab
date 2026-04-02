@@ -1,0 +1,36 @@
+---
+- name: Setup Uptime Kuma
+  hosts: container_host
+
+  vars:
+    uptime_kuma_host_port: 3001
+    podman_app_specs:
+      create_dirs: true
+      start_containers: true
+      firewall_services:
+        - service: uptime-kuma
+          state: present
+          port: "{{ uptime_kuma_host_port }}/tcp"
+          runtime: true
+          permanent: true
+        - service: uptime-kuma
+          state: enabled
+          runtime: true
+          permanent: true
+      containers:
+        - name: uptime-kuma
+          state: quadlet
+          image: docker.io/louislam/uptime-kuma:latest
+          volumes:
+            - /home/{{ ansible_user }}/uptime-kuma/data:/app/data:Z
+          ports:
+            - "{{ uptime_kuma_host_port }}:3001"
+          quadlet_options:
+            - "AutoUpdate=registry"
+            - "Pull=newer"
+            - |
+              [Install]
+              WantedBy=default.target
+  roles:
+    - name: Deploy it all
+      role: damien_live.homelab.podman_app

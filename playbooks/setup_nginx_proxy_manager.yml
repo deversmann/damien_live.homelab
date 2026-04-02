@@ -1,0 +1,61 @@
+---
+- name: Setup Nginx Proxy Manager
+  hosts: container_host
+
+  vars:
+    podman_app_specs:
+      create_dirs: true
+      start_containers: true
+      firewall_services:
+        - service: nginx-proxy-manager
+          state: present
+          port: ['9080/tcp', '9081/tcp', '9443/tcp']
+          runtime: true
+          permanent: true
+        - service: nginx-proxy-manager
+          state: enabled
+          runtime: true
+          permanent: true
+      containers:
+        - name: nginx-proxy-manager
+          state: quadlet
+          image: docker.io/jc21/nginx-proxy-manager:latest
+          volumes:
+            - /home/{{ ansible_user }}/nginx-proxy-manager/data:/data:Z
+            - /home/{{ ansible_user }}/nginx-proxy-manager/letsencrypt:/letsencrypt:Z
+          ports:
+            - "9080:80"
+            - "9081:81"
+            - "9443:443"
+          quadlet_options:
+            - "AutoUpdate=registry"
+            - "Pull=newer"
+            - |
+              [Install]
+              WantedBy=default.target
+  roles:
+    - name: Deploy it all
+      role: damien_live.homelab.podman_app
+
+  tasks:
+    - name: Forward port 80
+      become: true
+      ansible.posix.firewalld:
+        port_forward:
+          - port: 80
+            proto: tcp
+            toport: 9080
+        state: enabled
+        permanent: true
+        immediate: true
+
+    - name: Forward port 443
+      become: true
+      ansible.posix.firewalld:
+        port_forward:
+          - port: 443
+            proto: tcp
+            toport: 9443
+        state: enabled
+        permanent: true
+        immediate: true

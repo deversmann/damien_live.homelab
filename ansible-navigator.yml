@@ -1,0 +1,13 @@
+---
+ansible-navigator:
+  execution-environment:
+    container-engine: podman
+    enabled: true
+    image: quay.io/deversmarht/base_ee:1.1
+    pull:
+      policy: missing
+  playbook-artifact:
+    enable: False
+  logging:
+    level: critical
+  mode: stdout

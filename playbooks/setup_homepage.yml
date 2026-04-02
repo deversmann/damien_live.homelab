@@ -1,0 +1,36 @@
+---
+- name: Setup Homepage
+  hosts: container_host
+
+  vars:
+    homepage_host_port: 3000
+    podman_app_specs:
+      create_dirs: true
+      start_containers: true
+      firewall_services:
+        - service: homepage
+          state: present
+          port: "{{ homepage_host_port }}/tcp"
+          runtime: true
+          permanent: true
+        - service: homepage
+          state: enabled
+          runtime: true
+          permanent: true
+      containers:
+        - name: homegage
+          state: quadlet
+          image: ghcr.io/gethomepage/homepage:latest
+          volumes:
+            - /home/{{ ansible_user }}/homepage/config:/app/config:Z
+          ports:
+            - "{{ homepage_host_port }}:3000"
+          quadlet_options:
+            - "AutoUpdate=registry"
+            - "Pull=newer"
+            - |
+              [Install]
+              WantedBy=default.target
+  roles:
+    - name: Deploy it all
+      role: damien_live.homelab.podman_app
